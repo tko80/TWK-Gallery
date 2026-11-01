@@ -25,3 +25,10 @@ A mobile-first Progressive Web App for selecting and organizing photos and video
 - Newest/oldest sorting
 - Viewer previous/next navigation and swipe
 - Pinch zoom on touch devices and wheel zoom on desktop
+
+## Version 3
+- Backup and restore via a portable JSON backup file (includes media and albums)
+- Recently Deleted with automatic 30-day cleanup and restore/permanent-delete actions
+- Media details (file type, size, date)
+- Slideshow for photos
+- Database upgraded to v3 without intentionally clearing existing media/albums

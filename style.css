@@ -5,3 +5,6 @@
 #manageTools{display:flex!important;visibility:visible!important;min-height:42px;}
 #manageTools[hidden]{display:none!important;}
 #selectionBar[hidden],#albumTools[hidden]{display:none!important;}
+
+/* TWK Gallery V3 */
+.tabs{padding-bottom:13px}.manage-tools{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 13px}.manage-tools[hidden]{display:none!important}.pill{cursor:pointer}.viewer-meta{color:#9ba7bb;text-align:center;font-size:11px;padding:7px 12px}.viewer-actions{gap:8px;flex-wrap:wrap}.viewer-actions button{padding:8px 5px}.album-card{min-height:78px}.empty[hidden]{display:none!important}
