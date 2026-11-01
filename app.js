@@ -27,8 +27,51 @@ async function fromBase64(s,type){const raw=atob(s),a=new Uint8Array(raw.length)
 async function backup(){try{toast('Preparing backup…');const payload={format:'TWK-GALLERY-BACKUP',version:1,created:new Date().toISOString(),albums,items:[]};for(const x of items)payload.items.push({...x,blobBase64:await toBase64(x.blob),blob:undefined});const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`TWK-Gallery-Backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);toast('Backup downloaded')}catch(e){console.error(e);toast('Backup failed — storage or memory limit')}}
 async function restoreBackup(file){try{const data=JSON.parse(await file.text());if(data.format!=='TWK-GALLERY-BACKUP'||!Array.isArray(data.items)||!Array.isArray(data.albums))throw Error('Invalid backup');if(!confirm(`Restore ${data.items.length} media items and ${data.albums.length} albums? Existing items with matching IDs will be replaced.`))return;for(const a of data.albums)await req(ALBUMS,'readwrite','put(a)'.replace('put(a)','put'),a);for(const x of data.items){const {blobBase64,...meta}=x;meta.blob=await fromBase64(blobBase64,x.mimeType||'application/octet-stream');await req(MEDIA,'readwrite','put',meta)}await load();toast('Backup restored successfully')}catch(e){console.error(e);toast('Restore failed: invalid backup file')}}
 function startSlideshow(){const pics=items.filter(x=>x.type==='image');if(!pics.length)return toast('No photos for slideshow');let i=0;const show=()=>{activeId=pics[i].id;renderViewer();i=(i+1)%pics.length};show();clearInterval(slideTimer);slideTimer=setInterval(show,3000);$('slideshowBtn').textContent='Stop slideshow';$('slideshowBtn').onclick=()=>{clearInterval(slideTimer);slideTimer=null;closeViewer();$('slideshowBtn').textContent='Slideshow';$('slideshowBtn').onclick=startSlideshow}}
-$('addBtn').onclick=$('emptyAdd').onclick=()=>$('fileInput').click();
-$('fileInput').onchange=async e=>{for(const f of e.target.files){if(!f.type.startsWith('image/')&&!f.type.startsWith('video/'))continue;await req(MEDIA,'readwrite','put',{id:uid(),name:f.name,blob:f,type:f.type.startsWith('video/')?'video':'image',mimeType:f.type,favorite:false,album:null,created:Date.now()})}e.target.value='';await load();toast('Added to your gallery')};
+function openMediaPicker(){
+  const picker=$('fileInput');
+  picker.value='';
+  picker.click();
+}
+$('addBtn').addEventListener('click',openMediaPicker);
+$('emptyAdd').addEventListener('click',openMediaPicker);
+$('fileInput').addEventListener('change',async e=>{
+  const files=Array.from(e.target.files||[]);
+  if(!files.length)return;
+  let added=0,failed=0;
+  toast('Adding selected media…');
+  try{
+    for(const f of files){
+      if(!f.type.startsWith('image/')&&!f.type.startsWith('video/'))continue;
+      try{
+        const blob=new Blob([f],{type:f.type||'application/octet-stream'});
+        const record={
+          id:uid(),
+          name:f.name||`media-${Date.now()}`,
+          blob,
+          type:f.type.startsWith('video/')?'video':'image',
+          mimeType:f.type||'application/octet-stream',
+          favorite:false,
+          album:null,
+          created:Date.now()
+        };
+        await req(MEDIA,'readwrite','put',record);
+        added++;
+      }catch(fileError){
+        console.error('TWK Gallery media save failed:',fileError);
+        failed++;
+      }
+    }
+    await load();
+    if(added&&failed)toast(`${added} added; ${failed} failed`);
+    else if(added)toast(`${added} item${added===1?'':'s'} added successfully`);
+    else toast('Could not save media. Check browser storage space and try a smaller photo.');
+  }catch(error){
+    console.error('TWK Gallery upload error:',error);
+    toast(`Upload failed: ${error.name||'Storage error'}`);
+  }finally{
+    e.target.value='';
+  }
+});
 $('tabs').onclick=e=>{const b=e.target.closest('[data-view]');if(!b)return;view=b.dataset.view;activeAlbum=null;selected.clear();selectionMode=false;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===b));render()};
 $('search').oninput=render;$('sortBtn').onclick=async()=>{sortMode=sortMode==='newest'?'oldest':'newest';$('sortBtn').textContent=sortMode==='newest'?'Newest first':'Oldest first';await load()};
 $('selectBtn').onclick=()=>{selected.clear();selectionMode=true;view='all';activeAlbum=null;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view==='all'));render();toast('Tap photos to select them')};
