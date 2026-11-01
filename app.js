@@ -1,0 +1,28 @@
+const DB='twk-gallery-db',STORE='media';let db,items=[],view='all',active=null,albums=[],activeAlbum=null;
+const $=id=>document.getElementById(id);
+function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE)){const s=d.createObjectStore(STORE,{keyPath:'id'});s.createIndex('created','created')}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+function tx(mode='readonly'){return db.transaction(STORE,mode).objectStore(STORE)}
+async function load(){items=await new Promise((res,rej)=>{let r=tx().getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>b.created-a.created));r.onerror=()=>rej(r.error)});render()}
+async function save(item){await new Promise((res,rej)=>{let r=tx('readwrite').put(item);r.onsuccess=res;r.onerror=()=>rej(r.error)})}
+async function remove(id){await new Promise((res,rej)=>{let r=tx('readwrite').delete(id);r.onsuccess=res;r.onerror=()=>rej(r.error)});await load()}
+function filtered(){let q=$('search').value.trim().toLowerCase();return items.filter(x=>(view==='all'||(view==='photos'&&x.type==='image')||(view==='videos'&&x.type==='video')||(view==='favorites'&&x.favorite)||(view==='albums'&&(!activeAlbum||x.album===activeAlbum)))&&(!q||x.name.toLowerCase().includes(q)||new Date(x.created).toLocaleDateString().includes(q)))}
+function render(){let list=filtered();$('count').textContent=`${list.length} ${list.length===1?'item':'items'}`;$('grid').innerHTML='';$('empty').hidden=items.length>0||view==='albums';$('albumTools').hidden=view!=='albums';
+if(view==='albums'){renderAlbums();return}
+for(const x of list){let b=document.createElement('button');b.className='tile';b.setAttribute('aria-label',x.name);let media=document.createElement('img');media.src=URL.createObjectURL(x.blob);media.alt=x.name;b.append(media);if(x.type==='video'){let m=document.createElement('span');m.className='video-mark';m.textContent='▶ VIDEO';b.append(m)}if(x.favorite){let h=document.createElement('span');h.className='heart';h.textContent='♥';b.append(h)}b.onclick=()=>openViewer(x.id);$('grid').append(b)}
+}
+function renderAlbums(){const grid=$('grid');grid.innerHTML='';albums.forEach(a=>{let b=document.createElement('button');b.className='album-card';b.innerHTML=`<span><strong></strong><small></small></span><span>›</span>`;b.querySelector('strong').textContent=a.name;b.querySelector('small').textContent=items.filter(x=>x.album===a.id).length+' items';b.onclick=()=>{activeAlbum=a.id;render()};grid.append(b)});if(activeAlbum){let back=document.createElement('button');back.className='pill';back.textContent='← All albums';back.onclick=()=>{activeAlbum=null;render()};$('albumTools').prepend(back)}}
+function openViewer(id){active=items.find(x=>x.id===id);if(!active)return;let stage=$('viewerStage');stage.innerHTML='';let url=URL.createObjectURL(active.blob);let el=document.createElement(active.type==='video'?'video':'img');el.src=url;if(active.type==='video'){el.controls=true;el.playsInline=true}else{el.alt=active.name;el.style.touchAction='pan-x pan-y'}stage.append(el);$('viewerInfo').textContent=active.name;$('favoriteBtn').textContent=active.favorite?'♥ Favorited':'♡ Favorite';$('viewer').hidden=false}
+$('addBtn').onclick=$('emptyAdd').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=async e=>{for(const f of e.target.files){if(!f.type.startsWith('image/')&&!f.type.startsWith('video/'))continue;await save({id:crypto.randomUUID(),name:f.name,blob:f,type:f.type.startsWith('video/')?'video':'image',favorite:false,album:null,created:Date.now()})}e.target.value='';await load();toast('Added to your gallery')};
+$('tabs').onclick=e=>{let b=e.target.closest('[data-view]');if(!b)return;view=b.dataset.view;activeAlbum=null;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===b));render()};
+$('search').oninput=render;
+$('closeViewer').onclick=()=>{$('viewer').hidden=true;$('viewerStage').innerHTML='';active=null};
+$('favoriteBtn').onclick=async()=>{if(!active)return;active.favorite=!active.favorite;await save(active);$('favoriteBtn').textContent=active.favorite?'♥ Favorited':'♡ Favorite';await load()};
+$('shareBtn').onclick=async()=>{if(!active)return;let file=new File([active.blob],active.name,{type:active.blob.type});try{if(navigator.canShare?.({files:[file]}))await navigator.share({files:[file],title:active.name});else{let a=document.createElement('a');a.href=URL.createObjectURL(active.blob);a.download=active.name;a.click();toast('Saved to Downloads')}}catch(err){if(err.name!=='AbortError')toast('Sharing is unavailable')}}
+$('deleteBtn').onclick=async()=>{if(!active)return;if(confirm('Remove this item from TWK Gallery? This does not delete the original in Apple Photos.')){await remove(active.id);$('viewer').hidden=true;$('viewerStage').innerHTML='';active=null;toast('Removed from TWK Gallery')}};
+$('newAlbum').onclick=()=>{$('albumName').value='';$('modal').hidden=false;$('albumName').focus()};
+$('cancelModal').onclick=()=>$('modal').hidden=true;
+$('saveAlbum').onclick=()=>{let name=$('albumName').value.trim();if(!name)return toast('Enter an album name');albums.push({id:crypto.randomUUID(),name});$('modal').hidden=true;renderAlbums()};
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+(async()=>{try{db=await openDB();await load()}catch(e){toast('Storage unavailable in this browser')}})();
