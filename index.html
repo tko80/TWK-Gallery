@@ -18,12 +18,14 @@
 </nav>
 <main>
   <section id="albumTools" class="album-tools" hidden><button class="pill" id="newAlbum">＋ New album</button></section>
+  <section class="manage-tools"><button class="pill" id="selectBtn">Select</button><button class="pill" id="sortBtn">Newest first</button></section>
+  <section id="selectionBar" class="selection-bar" hidden><span id="selectedCount">Selected items</span><button class="pill" id="selectAll">Select all</button><button class="pill" id="moveSelected">Move to album</button><button class="pill" id="deleteSelected">Remove</button><button class="pill" id="clearSelection">Done</button></section>
   <section id="grid" class="grid" aria-live="polite"></section>
   <section id="empty" class="empty"><div class="empty-icon">▧</div><h2>Your gallery starts here</h2><p>Add photos and videos from your iPhone to build your private gallery.</p><button class="primary" id="emptyAdd">Choose photos</button></section>
 </main>
 <footer><span>TWK GALLERY</span><span id="storageNote">Stored on this device</span></footer>
 <div class="viewer" id="viewer" hidden>
-  <div class="viewer-head"><button class="round ghost" id="closeViewer">×</button><div id="viewerInfo"></div><button class="round ghost" id="moreBtn">•••</button></div>
+  <div class="viewer-head"><button class="round ghost" id="closeViewer">×</button><div id="viewerInfo"></div><span><button class="round ghost small" id="prevBtn">‹</button><button class="round ghost small" id="nextBtn">›</button></span></div>
   <div class="viewer-stage" id="viewerStage"></div>
   <div class="viewer-actions"><button id="favoriteBtn">♡ Favorite</button><button id="shareBtn">↗ Share</button><button id="deleteBtn" class="danger">⌫ Remove</button></div>
 </div>

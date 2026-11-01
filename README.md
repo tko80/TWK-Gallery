@@ -17,3 +17,11 @@ A mobile-first Progressive Web App for selecting and organizing photos and video
 - Album organization is currently held in the current page session; selected media and favorites persist locally.
 - Browser storage may be cleared by iOS/browser storage management. Keep originals backed up in Photos/iCloud.
 - HTTPS is required for service worker/PWA installation; GitHub Pages provides HTTPS.
+
+## Version 2 features
+- Persistent albums in IndexedDB
+- Move selected items to albums
+- Multi-select, select all, bulk remove
+- Newest/oldest sorting
+- Viewer previous/next navigation and swipe
+- Pinch zoom on touch devices and wheel zoom on desktop
