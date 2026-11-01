@@ -1,6 +1,6 @@
 const DB='twk-gallery-db',VERSION=3,MEDIA='media',ALBUMS='albums',TRASH='trash';
 let db,items=[],albums=[],trash=[],view='all',activeAlbum=null,activeId=null,selected=new Set(),sortMode='newest',selectionMode=false,slideTimer=null;
-let editorSource=null,editorImage=null,editorRotation=0;
+let editorSource=null,editorImage=null,editorRotation=0,editorCrop={x:0,y:0,w:1,h:1},editorHistory=[],editorHistoryIndex=-1,editorDragging=false,editorDragStart=null;
 const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID();
 function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),2500)}
 function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,VERSION);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(MEDIA)){const s=d.createObjectStore(MEDIA,{keyPath:'id'});s.createIndex('created','created')}if(!d.objectStoreNames.contains(ALBUMS))d.createObjectStore(ALBUMS,{keyPath:'id'});if(!d.objectStoreNames.contains(TRASH))d.createObjectStore(TRASH,{keyPath:'id'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
@@ -12,7 +12,7 @@ if(view==='albums'&&!activeAlbum){renderAlbums();return}
 $('empty').hidden=list.length>0;if(!list.length){$('emptyTitle').textContent=view==='trash'?'Recently deleted is empty':'Nothing here yet';$('emptyText').textContent=view==='trash'?'Deleted items stay here for up to 30 days.':'Add photos and videos to your private gallery.';$('emptyAdd').hidden=view==='trash'}
 for(const x of list){const b=document.createElement('button');b.className='tile'+(selected.has(x.id)?' chosen':'');const im=document.createElement('img');im.src=URL.createObjectURL(x.blob);im.alt=x.name;b.append(im);if(x.type==='video'){const m=document.createElement('span');m.className='video-mark';m.textContent='▶';b.append(m)}if(x.favorite&&view!=='trash'){const h=document.createElement('span');h.className='heart';h.textContent='♥';b.append(h)}if(selected.has(x.id)){const c=document.createElement('span');c.className='selected-mark';c.textContent='✓';b.append(c)}if(view==='trash'){b.onclick=()=>trashActions(x)}else b.onclick=()=>selectionMode||selected.size?(selected.has(x.id)?selected.delete(x.id):selected.add(x.id),render()):openViewer(x.id);grid.append(b)}
 }
-function renderAlbums(){const grid=$('grid');grid.innerHTML='';for(const a of albums){const b=document.createElement('button');b.className='album-card';const cover=items.find(x=>x.id===a.coverId)||items.find(x=>x.album===a.id);if(cover){const im=document.createElement('img');im.src=URL.createObjectURL(cover.blob);b.append(im)}const t=document.createElement('span');t.innerHTML='<strong></strong><small></small>';t.querySelector('strong').textContent=a.name;t.querySelector('small').textContent=items.filter(x=>x.album===a.id).length+' items';b.append(t);const ar=document.createElement('span');ar.textContent='›';b.append(ar);b.onclick=()=>{activeAlbum=a.id;render()};grid.append(b)}
+function renderAlbums(){const grid=$('grid');grid.innerHTML='';for(const a of albums){const b=document.createElement('button');b.className='album-card';const cover=items.find(x=>x.id===a.coverId)||items.find(x=>x.album===a.id);if(cover){const im=document.createElement('img');im.src=URL.createObjectURL(cover.blob);b.append(im);const badge=document.createElement('small');badge.className='cover-label';badge.textContent='COVER';b.append(badge)}const t=document.createElement('span');t.innerHTML='<strong></strong><small></small>';t.querySelector('strong').textContent=a.name;t.querySelector('small').textContent=items.filter(x=>x.album===a.id).length+' items';b.append(t);const ar=document.createElement('span');ar.textContent='›';b.append(ar);b.onclick=()=>{activeAlbum=a.id;render()};grid.append(b)}
 $('albumTools').innerHTML='<button class="pill" id="newAlbum">＋ New album</button>'; $('newAlbum').onclick=()=>albumDialog()}
 function albumDialog(id){$('albumName').value=id?albums.find(a=>a.id===id)?.name||'':'';$('modalTitle').textContent=id?'Rename album':'New album';$('saveAlbum').textContent=id?'Save':'Create';$('modal').hidden=false;$('saveAlbum').onclick=async()=>{const name=$('albumName').value.trim();if(!name)return toast('Enter an album name');if(id){const a=albums.find(a=>a.id===id);a.name=name;await req(ALBUMS,'readwrite','put',a)}else await req(ALBUMS,'readwrite','put',{id:uid(),name,created:Date.now()});$('modal').hidden=true;await load()};$('albumName').focus()}
 async function moveToTrash(x){await req(MEDIA,'readwrite','delete',x.id);await req(TRASH,'readwrite','put',{...x,deletedAt:Date.now()})}
@@ -23,14 +23,21 @@ function renderViewer(){const x=items.find(a=>a.id===activeId);if(!x)return;cons
 function formatBytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB'],i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),3);return`${(n/1024**i).toFixed(i?1:0)} ${u[i]}`}
 
 function closeViewer(){$('viewer').hidden=true;$('viewerStage').innerHTML='';activeId=null}
+function editorState(){return{rotation:editorRotation,brightness:$('brightness').value,contrast:$('contrast').value,ratio:$('cropRatio').value,filter:$('photoFilter').value,crop:{...editorCrop}}}
+function applyEditorState(s){editorRotation=s.rotation;$('brightness').value=s.brightness;$('contrast').value=s.contrast;$('cropRatio').value=s.ratio;$('photoFilter').value=s.filter;editorCrop={...s.crop};$('brightnessValue').textContent=s.brightness+'%';$('contrastValue').textContent=s.contrast+'%';drawEditorPreview();updateEditorHistoryButtons()}
+function pushEditorHistory(){const s=editorState();editorHistory=editorHistory.slice(0,editorHistoryIndex+1);editorHistory.push(s);if(editorHistory.length>40)editorHistory.shift();editorHistoryIndex=editorHistory.length-1;updateEditorHistoryButtons()}
+function updateEditorHistoryButtons(){$('undoEdit').disabled=editorHistoryIndex<=0;$('redoEdit').disabled=editorHistoryIndex>=editorHistory.length-1}
+function undoEditor(){if(editorHistoryIndex>0){editorHistoryIndex--;applyEditorState(editorHistory[editorHistoryIndex])}}
+function redoEditor(){if(editorHistoryIndex<editorHistory.length-1){editorHistoryIndex++;applyEditorState(editorHistory[editorHistoryIndex])}}
+function filterString(){const f=$('photoFilter').value;const filters={none:'',vivid:' saturate(1.35)',dramatic:' saturate(.82) contrast(1.22)',warm:' sepia(.2) saturate(1.15)',cool:' hue-rotate(12deg) saturate(1.08)'};return `brightness(${$('brightness').value}%) contrast(${$('contrast').value}%)${filters[f]||''}`}
 function openEditor(){
   const x=items.find(a=>a.id===activeId);
   if(!x||x.type!=='image')return toast('Only photos can be edited');
-  editorSource=x;editorRotation=0;
-  $('cropRatio').value='original';$('brightness').value=100;$('contrast').value=100;
+  editorSource=x;editorRotation=0;editorCrop={x:0,y:0,w:1,h:1};editorHistory=[];editorHistoryIndex=-1;
+  $('cropRatio').value='original';$('brightness').value=100;$('contrast').value=100;$('photoFilter').value='none';
   $('brightnessValue').textContent='100%';$('contrastValue').textContent='100%';
   const url=URL.createObjectURL(x.blob),img=new Image();
-  img.onload=()=>{editorImage=img;drawEditorPreview();URL.revokeObjectURL(url)};
+  img.onload=()=>{editorImage=img;drawEditorPreview();pushEditorHistory();URL.revokeObjectURL(url)};
   img.onerror=()=>{URL.revokeObjectURL(url);toast('Could not open this photo in the editor')};
   img.src=url;$('editor').hidden=false;
 }
@@ -43,17 +50,22 @@ function drawEditorPreview(){
   const scale=Math.min(maxW/w,maxH/h,1);
   canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
   ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(editorRotation*Math.PI/180);
-  ctx.filter=`brightness(${$('brightness').value}%) contrast(${$('contrast').value}%)`;
+  ctx.filter=filterString();
   ctx.drawImage(editorImage,-editorImage.naturalWidth*scale/2,-editorImage.naturalHeight*scale/2,editorImage.naturalWidth*scale,editorImage.naturalHeight*scale);
   ctx.restore();
+  const c=editorCrop;
+  if(c.w<.999||c.h<.999){ctx.save();ctx.fillStyle='rgba(0,0,0,.48)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.clearRect(c.x*canvas.width,c.y*canvas.height,c.w*canvas.width,c.h*canvas.height);
+    // Redraw the selected area crisp above the dimmed overlay.
+    ctx.save();ctx.beginPath();ctx.rect(c.x*canvas.width,c.y*canvas.height,c.w*canvas.width,c.h*canvas.height);ctx.clip();
+    ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(editorRotation*Math.PI/180);ctx.filter=filterString();
+    ctx.drawImage(editorImage,-editorImage.naturalWidth*scale/2,-editorImage.naturalHeight*scale/2,editorImage.naturalWidth*scale,editorImage.naturalHeight*scale);ctx.restore();
+    ctx.strokeStyle='#e8efff';ctx.lineWidth=Math.max(2,canvas.width/300);ctx.setLineDash([7,5]);ctx.strokeRect(c.x*canvas.width,c.y*canvas.height,c.w*canvas.width,c.h*canvas.height);ctx.restore();
+  }
 }
-function closeEditor(){$('editor').hidden=true;editorSource=null;editorImage=null}
-function getCropRect(w,h,ratio){
-  if(ratio==='original')return{x:0,y:0,w,h};
-  const [rw,rh]=ratio.split(':').map(Number),target=rw/rh,current=w/h;
-  if(current>target){const cw=h*target;return{x:(w-cw)/2,y:0,w:cw,h}}
-  const ch=w/target;return{x:0,y:(h-ch)/2,w,h:ch}
-}
+function closeEditor(){$('editor').hidden=true;editorSource=null;editorImage=null;editorHistory=[];editorHistoryIndex=-1}
+function cropPointerDown(e){if(!editorImage)return;const c=$('editCanvas'),r=c.getBoundingClientRect();editorDragging=true;editorDragStart={x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};editorCrop={x:editorDragStart.x,y:editorDragStart.y,w:0,h:0};c.setPointerCapture?.(e.pointerId)}
+function cropPointerMove(e){if(!editorDragging||!editorDragStart)return;const c=$('editCanvas'),r=c.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));let left=Math.min(x,editorDragStart.x),top=Math.min(y,editorDragStart.y),width=Math.abs(x-editorDragStart.x),height=Math.abs(y-editorDragStart.y);const ratio=$('cropRatio').value;if(ratio!=='original'){const [rw,rh]=ratio.split(':').map(Number),target=(rw/rh)*(r.height/r.width);if(width/Math.max(height,.001)>target)width=height*target;else height=width/target;left=x<editorDragStart.x?editorDragStart.x-width:editorDragStart.x;top=y<editorDragStart.y?editorDragStart.y-height:editorDragStart.y;}editorCrop={x:Math.max(0,left),y:Math.max(0,top),w:Math.min(width,1-Math.max(0,left)),h:Math.min(height,1-Math.max(0,top))};drawEditorPreview()}
+function cropPointerUp(){if(!editorDragging)return;editorDragging=false;editorDragStart=null;if(editorCrop.w<.03||editorCrop.h<.03)editorCrop={x:0,y:0,w:1,h:1};pushEditorHistory();drawEditorPreview()}
 async function saveEditedCopy(){
   if(!editorImage||!editorSource)return;
   try{
@@ -61,9 +73,8 @@ async function saveEditedCopy(){
     const rw=rotation%180===0?sw:sh,rh=rotation%180===0?sh:sw;
     const temp=document.createElement('canvas');temp.width=rw;temp.height=rh;
     const tctx=temp.getContext('2d');tctx.translate(rw/2,rh/2);tctx.rotate(rotation*Math.PI/180);
-    tctx.filter=`brightness(${$('brightness').value}%) contrast(${$('contrast').value}%)`;
-    tctx.drawImage(editorImage,-sw/2,-sh/2,sw,sh);
-    const crop=getCropRect(rw,rh,$('cropRatio').value),canvas=document.createElement('canvas');
+    tctx.filter=filterString();tctx.drawImage(editorImage,-sw/2,-sh/2,sw,sh);
+    const c=editorCrop,crop={x:c.x*rw,y:c.y*rh,w:c.w*rw,h:c.h*rh},canvas=document.createElement('canvas');
     canvas.width=Math.max(1,Math.round(crop.w));canvas.height=Math.max(1,Math.round(crop.h));
     canvas.getContext('2d').drawImage(temp,crop.x,crop.y,crop.w,crop.h,0,0,canvas.width,canvas.height);
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not encode edited photo')),'image/jpeg',.92));
@@ -144,9 +155,17 @@ $('favoriteBtn').onclick=async()=>{const x=items.find(a=>a.id===activeId);if(!x)
 $('editBtn').onclick=openEditor;
 $('coverBtn').onclick=setAlbumCover;
 $('closeEditor').onclick=closeEditor;
-$('rotateLeft').onclick=()=>{editorRotation=(editorRotation+270)%360;drawEditorPreview()};
-$('rotateRight').onclick=()=>{editorRotation=(editorRotation+90)%360;drawEditorPreview()};
-$('cropRatio').onchange=drawEditorPreview;
+$('rotateLeft').onclick=()=>{editorRotation=(editorRotation+270)%360;editorCrop={x:0,y:0,w:1,h:1};drawEditorPreview();pushEditorHistory()};
+$('rotateRight').onclick=()=>{editorRotation=(editorRotation+90)%360;editorCrop={x:0,y:0,w:1,h:1};drawEditorPreview();pushEditorHistory()};
+$('cropRatio').onchange=()=>{editorCrop={x:0,y:0,w:1,h:1};drawEditorPreview();pushEditorHistory()};
+$('photoFilter').onchange=()=>{drawEditorPreview();pushEditorHistory()};
+$('brightness').onchange=()=>pushEditorHistory();
+$('contrast').onchange=()=>pushEditorHistory();
+$('undoEdit').onclick=undoEditor;$('redoEdit').onclick=redoEditor;
+$('editCanvas').addEventListener('pointerdown',cropPointerDown);
+$('editCanvas').addEventListener('pointermove',cropPointerMove);
+$('editCanvas').addEventListener('pointerup',cropPointerUp);
+$('editCanvas').addEventListener('pointercancel',cropPointerUp);
 $('brightness').oninput=()=>{$('brightnessValue').textContent=$('brightness').value+'%';drawEditorPreview()};
 $('contrast').oninput=()=>{$('contrastValue').textContent=$('contrast').value+'%';drawEditorPreview()};
 $('saveEdit').onclick=saveEditedCopy;
@@ -156,3 +175,5 @@ $('deleteBtn').onclick=async()=>{const x=items.find(a=>a.id===activeId);if(x&&co
 $('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreInput').click();$('restoreInput').onchange=async e=>{if(e.target.files[0])await restoreBackup(e.target.files[0]);e.target.value=''};$('slideshowBtn').onclick=startSlideshow;$('cancelModal').onclick=()=>$('modal').hidden=true;
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 (async()=>{try{db=await openDB();await load()}catch(e){console.error(e);toast('Storage unavailable in this browser')}})();
+
+window.addEventListener('resize',()=>{if(editorImage)drawEditorPreview()});

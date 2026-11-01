@@ -38,3 +38,11 @@ A mobile-first Progressive Web App for selecting and organizing photos and video
 - Edited photos save as a new JPEG copy; the original remains unchanged
 - Choose a photo as an album cover from the photo viewer
 - Service worker cache version bumped to v6
+
+## Version 5
+- Freehand drag-to-select crop region in the photo editor (aspect ratio follows selected ratio)
+- Filter presets: Vivid, Dramatic, Warm, Cool
+- Undo/Redo history for editor changes
+- Persistent bottom navigation on mobile layouts
+- Album cover thumbnail label in album list
+- Original photos remain unchanged; edited versions save as separate copies

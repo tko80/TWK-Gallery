@@ -25,3 +25,16 @@
 .editor-note{margin:0;color:#8f9ab0;font-size:11px;line-height:1.5}
 .viewer-actions button[hidden]{display:none!important}
 @media(min-width:700px){.editor{max-width:900px;margin:auto;left:0;right:0;border-left:1px solid #252d40;border-right:1px solid #252d40}.editor-preview{min-height:300px}.editor-controls{padding:18px 28px 26px}}
+
+/* TWK Gallery V5 polish */
+.crop-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;color:#dbe6ff;background:#080b13c9;padding:6px 10px;border-radius:20px;white-space:nowrap;pointer-events:none}
+.editor-preview{position:relative}
+.editor-preview canvas{touch-action:none;cursor:crosshair;user-select:none}
+.editor-row button:disabled{opacity:.35;cursor:not-allowed}
+.cover-label{font-size:9px!important;letter-spacing:1px;color:#b9c9ea!important;background:#202b42;padding:3px 6px;border-radius:10px;margin-left:8px}
+@media(max-width:640px){
+  body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+  .bottom-nav{position:fixed;z-index:7;left:0;right:0;bottom:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:rgba(10,13,21,.96);border-top:1px solid #283247;backdrop-filter:blur(18px);gap:6px;justify-content:space-around}
+  .bottom-nav .tab{flex:1;min-width:max-content;padding:10px 11px;font-size:11px}
+  footer{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+}
