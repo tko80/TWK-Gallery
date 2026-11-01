@@ -18,7 +18,18 @@
 <section id="empty" class="empty" hidden><div class="empty-icon">▧</div><h2 id="emptyTitle">Your gallery starts here</h2><p id="emptyText">Add photos and videos from your iPhone to build your private gallery.</p><button class="primary" id="emptyAdd">Choose photos</button></section>
 </main>
 <footer><span>TWK GALLERY</span><span id="storageNote">Stored on this device</span></footer>
-<div class="viewer" id="viewer" hidden><div class="viewer-head"><button class="round ghost" id="closeViewer">×</button><div id="viewerInfo"></div><span><button class="round ghost small" id="prevBtn">‹</button><button class="round ghost small" id="nextBtn">›</button></span></div><div class="viewer-stage" id="viewerStage"></div><div class="viewer-meta" id="viewerMeta"></div><div class="viewer-actions"><button id="favoriteBtn">♡ Favorite</button><button id="detailsBtn">ⓘ Details</button><button id="shareBtn">↗ Share</button><button id="deleteBtn" class="danger">⌫ Delete</button></div></div>
+<div class="viewer" id="viewer" hidden><div class="viewer-head"><button class="round ghost" id="closeViewer">×</button><div id="viewerInfo"></div><span><button class="round ghost small" id="prevBtn">‹</button><button class="round ghost small" id="nextBtn">›</button></span></div><div class="viewer-stage" id="viewerStage"></div><div class="viewer-meta" id="viewerMeta"></div><div class="viewer-actions"><button id="favoriteBtn">♡ Favorite</button><button id="editBtn">✎ Edit</button><button id="coverBtn">▣ Set cover</button><button id="detailsBtn">ⓘ Details</button><button id="shareBtn">↗ Share</button><button id="deleteBtn" class="danger">⌫ Delete</button></div></div>
 <div class="modal" id="modal" hidden><div class="modal-card"><h2 id="modalTitle">New album</h2><input id="albumName" maxlength="40" placeholder="Album name"><div class="modal-actions"><button id="cancelModal" class="pill">Cancel</button><button id="saveAlbum" class="primary">Create</button></div></div></div>
+<div class="editor" id="editor" hidden>
+  <div class="editor-head"><button class="round ghost" id="closeEditor">×</button><strong>Edit photo</strong><button class="primary" id="saveEdit">Save copy</button></div>
+  <div class="editor-preview"><canvas id="editCanvas"></canvas></div>
+  <div class="editor-controls">
+    <div class="editor-row"><label for="cropRatio">Crop ratio</label><select id="cropRatio"><option value="original">Original</option><option value="1:1">Square 1:1</option><option value="4:3">4:3</option><option value="16:9">16:9</option><option value="3:4">Portrait 3:4</option><option value="9:16">Portrait 9:16</option></select></div>
+    <div class="editor-row"><label>Rotate</label><div><button class="pill" id="rotateLeft">↶ 90°</button><button class="pill" id="rotateRight">↷ 90°</button></div></div>
+    <div class="editor-row"><label for="brightness">Brightness <span id="brightnessValue">100%</span></label><input id="brightness" type="range" min="50" max="150" value="100"></div>
+    <div class="editor-row"><label for="contrast">Contrast <span id="contrastValue">100%</span></label><input id="contrast" type="range" min="50" max="150" value="100"></div>
+    <p class="editor-note">Edits are saved as a new copy. Your original photo stays unchanged.</p>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="app.js"></script></body></html>

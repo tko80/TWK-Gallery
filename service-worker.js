@@ -1,4 +1,4 @@
-const CACHE='twk-gallery-v5';
+const CACHE='twk-gallery-v6';
 const CORE=['./','./index.html','./style.css','./app.js','./manifest.json'];
 self.addEventListener('install',event=>{
   event.waitUntil((async()=>{

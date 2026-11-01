@@ -32,3 +32,9 @@ A mobile-first Progressive Web App for selecting and organizing photos and video
 - Media details (file type, size, date)
 - Slideshow for photos
 - Database upgraded to v3 without intentionally clearing existing media/albums
+
+## Version 4
+- Built-in photo editor: rotate 90° left/right, crop presets, brightness and contrast
+- Edited photos save as a new JPEG copy; the original remains unchanged
+- Choose a photo as an album cover from the photo viewer
+- Service worker cache version bumped to v6

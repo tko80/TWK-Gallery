@@ -1,5 +1,6 @@
 const DB='twk-gallery-db',VERSION=3,MEDIA='media',ALBUMS='albums',TRASH='trash';
 let db,items=[],albums=[],trash=[],view='all',activeAlbum=null,activeId=null,selected=new Set(),sortMode='newest',selectionMode=false,slideTimer=null;
+let editorSource=null,editorImage=null,editorRotation=0;
 const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID();
 function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),2500)}
 function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,VERSION);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(MEDIA)){const s=d.createObjectStore(MEDIA,{keyPath:'id'});s.createIndex('created','created')}if(!d.objectStoreNames.contains(ALBUMS))d.createObjectStore(ALBUMS,{keyPath:'id'});if(!d.objectStoreNames.contains(TRASH))d.createObjectStore(TRASH,{keyPath:'id'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
@@ -18,9 +19,69 @@ async function moveToTrash(x){await req(MEDIA,'readwrite','delete',x.id);await r
 async function restoreTrash(x){const {deletedAt,...item}=x;await req(MEDIA,'readwrite','put',item);await req(TRASH,'readwrite','delete',x.id);await load();toast('Item restored')}
 async function trashActions(x){const action=prompt(`1. Restore "${x.name}"\n2. Permanently delete`);if(action==='1')await restoreTrash(x);else if(action==='2'&&confirm('Permanently delete this item?')){await req(TRASH,'readwrite','delete',x.id);await load();toast('Permanently deleted')}}
 function openViewer(id){activeId=id;renderViewer()}
-function renderViewer(){const x=items.find(a=>a.id===activeId);if(!x)return;const stage=$('viewerStage');stage.innerHTML='';$('viewerInfo').textContent=x.name;const url=URL.createObjectURL(x.blob),el=document.createElement(x.type==='video'?'video':'img');el.src=url;if(x.type==='video'){el.controls=true;el.playsInline=true}else{el.alt=x.name;el.draggable=false;let scale=1,dist=0;el.style.touchAction='none';el.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(1,Math.min(5,scale+(e.deltaY<0?.25:-.25)));el.style.transform=`scale(${scale})`},{passive:false});el.addEventListener('touchstart',e=>{if(e.touches.length===2)dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)},{passive:true});el.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(dist)scale=Math.max(1,Math.min(5,scale*d/dist));dist=d;el.style.transform=`scale(${scale})`}},{passive:true})}stage.append(el);$('favoriteBtn').textContent=x.favorite?'♥ Favorited':'♡ Favorite';$('viewerMeta').textContent=`${x.blob.type||x.type} · ${formatBytes(x.blob.size)} · ${new Date(x.created).toLocaleString()}`;$('viewer').hidden=false}
+function renderViewer(){const x=items.find(a=>a.id===activeId);if(!x)return;const stage=$('viewerStage');stage.innerHTML='';$('viewerInfo').textContent=x.name;const url=URL.createObjectURL(x.blob),el=document.createElement(x.type==='video'?'video':'img');el.src=url;if(x.type==='video'){el.controls=true;el.playsInline=true}else{el.alt=x.name;el.draggable=false;let scale=1,dist=0;el.style.touchAction='none';el.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(1,Math.min(5,scale+(e.deltaY<0?.25:-.25)));el.style.transform=`scale(${scale})`},{passive:false});el.addEventListener('touchstart',e=>{if(e.touches.length===2)dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)},{passive:true});el.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(dist)scale=Math.max(1,Math.min(5,scale*d/dist));dist=d;el.style.transform=`scale(${scale})`}},{passive:true})}stage.append(el);$('favoriteBtn').textContent=x.favorite?'♥ Favorited':'♡ Favorite';$('editBtn').hidden=x.type!=='image';$('coverBtn').hidden=x.type!=='image';$('viewerMeta').textContent=`${x.blob.type||x.type} · ${formatBytes(x.blob.size)} · ${new Date(x.created).toLocaleString()}`;$('viewer').hidden=false}
 function formatBytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB'],i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),3);return`${(n/1024**i).toFixed(i?1:0)} ${u[i]}`}
+
 function closeViewer(){$('viewer').hidden=true;$('viewerStage').innerHTML='';activeId=null}
+function openEditor(){
+  const x=items.find(a=>a.id===activeId);
+  if(!x||x.type!=='image')return toast('Only photos can be edited');
+  editorSource=x;editorRotation=0;
+  $('cropRatio').value='original';$('brightness').value=100;$('contrast').value=100;
+  $('brightnessValue').textContent='100%';$('contrastValue').textContent='100%';
+  const url=URL.createObjectURL(x.blob),img=new Image();
+  img.onload=()=>{editorImage=img;drawEditorPreview();URL.revokeObjectURL(url)};
+  img.onerror=()=>{URL.revokeObjectURL(url);toast('Could not open this photo in the editor')};
+  img.src=url;$('editor').hidden=false;
+}
+function drawEditorPreview(){
+  if(!editorImage)return;
+  const canvas=$('editCanvas'),ctx=canvas.getContext('2d');
+  const w=editorRotation%180===0?editorImage.naturalWidth:editorImage.naturalHeight;
+  const h=editorRotation%180===0?editorImage.naturalHeight:editorImage.naturalWidth;
+  const maxW=Math.max(280,window.innerWidth-36),maxH=Math.max(240,window.innerHeight*.42);
+  const scale=Math.min(maxW/w,maxH/h,1);
+  canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+  ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(editorRotation*Math.PI/180);
+  ctx.filter=`brightness(${$('brightness').value}%) contrast(${$('contrast').value}%)`;
+  ctx.drawImage(editorImage,-editorImage.naturalWidth*scale/2,-editorImage.naturalHeight*scale/2,editorImage.naturalWidth*scale,editorImage.naturalHeight*scale);
+  ctx.restore();
+}
+function closeEditor(){$('editor').hidden=true;editorSource=null;editorImage=null}
+function getCropRect(w,h,ratio){
+  if(ratio==='original')return{x:0,y:0,w,h};
+  const [rw,rh]=ratio.split(':').map(Number),target=rw/rh,current=w/h;
+  if(current>target){const cw=h*target;return{x:(w-cw)/2,y:0,w:cw,h}}
+  const ch=w/target;return{x:0,y:(h-ch)/2,w,h:ch}
+}
+async function saveEditedCopy(){
+  if(!editorImage||!editorSource)return;
+  try{
+    const rotation=((editorRotation%360)+360)%360,sw=editorImage.naturalWidth,sh=editorImage.naturalHeight;
+    const rw=rotation%180===0?sw:sh,rh=rotation%180===0?sh:sw;
+    const temp=document.createElement('canvas');temp.width=rw;temp.height=rh;
+    const tctx=temp.getContext('2d');tctx.translate(rw/2,rh/2);tctx.rotate(rotation*Math.PI/180);
+    tctx.filter=`brightness(${$('brightness').value}%) contrast(${$('contrast').value}%)`;
+    tctx.drawImage(editorImage,-sw/2,-sh/2,sw,sh);
+    const crop=getCropRect(rw,rh,$('cropRatio').value),canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(crop.w));canvas.height=Math.max(1,Math.round(crop.h));
+    canvas.getContext('2d').drawImage(temp,crop.x,crop.y,crop.w,crop.h,0,0,canvas.width,canvas.height);
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not encode edited photo')),'image/jpeg',.92));
+    const record={id:uid(),name:editorSource.name.replace(/\.[^.]+$/,'')+'-edited.jpg',blob,type:'image',mimeType:'image/jpeg',favorite:false,album:editorSource.album||null,created:Date.now(),editedFrom:editorSource.id};
+    await req(MEDIA,'readwrite','put',record);
+    closeEditor();await load();activeId=record.id;renderViewer();toast('Edited copy saved. Original kept safe.');
+  }catch(error){console.error('Photo editor error:',error);toast('Could not save edited photo')}
+}
+async function setAlbumCover(){
+  const x=items.find(a=>a.id===activeId);if(!x)return;
+  if(!albums.length)return toast('Create an album first');
+  const options=albums.map((a,i)=>`${i+1}. ${a.name}`).join('\n');
+  const choice=prompt('Set this photo as the cover of which album?\n'+options);
+  const album=albums[Number(choice)-1];if(!album)return;
+  album.coverId=x.id;await req(ALBUMS,'readwrite','put',album);
+  await load();toast(`Cover updated for ${album.name}`);
+}
+
 function moveViewer(dir){const list=currentList(),i=list.findIndex(x=>x.id===activeId),next=list[i+dir];if(next){activeId=next.id;renderViewer()}}
 async function toBase64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)})}
 async function fromBase64(s,type){const raw=atob(s),a=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return new Blob([a],{type})}
@@ -80,6 +141,15 @@ $('moveSelected').onclick=async()=>{if(!albums.length)return toast('Create an al
 $('deleteSelected').onclick=async()=>{if(!selected.size||!confirm(`Move ${selected.size} items to Recently Deleted?`))return;for(const id of selected){const x=items.find(x=>x.id===id);if(x)await moveToTrash(x)}selected.clear();selectionMode=false;await load();toast('Moved to Recently Deleted')};
 $('closeViewer').onclick=closeViewer;$('prevBtn').onclick=()=>moveViewer(-1);$('nextBtn').onclick=()=>moveViewer(1);let touchX=0;$('viewerStage').addEventListener('touchstart',e=>touchX=e.changedTouches[0].screenX,{passive:true});$('viewerStage').addEventListener('touchend',e=>{const dx=e.changedTouches[0].screenX-touchX;if(Math.abs(dx)>80)moveViewer(dx<0?1:-1)},{passive:true});
 $('favoriteBtn').onclick=async()=>{const x=items.find(a=>a.id===activeId);if(!x)return;x.favorite=!x.favorite;await req(MEDIA,'readwrite','put',x);$('favoriteBtn').textContent=x.favorite?'♥ Favorited':'♡ Favorite';await load()};
+$('editBtn').onclick=openEditor;
+$('coverBtn').onclick=setAlbumCover;
+$('closeEditor').onclick=closeEditor;
+$('rotateLeft').onclick=()=>{editorRotation=(editorRotation+270)%360;drawEditorPreview()};
+$('rotateRight').onclick=()=>{editorRotation=(editorRotation+90)%360;drawEditorPreview()};
+$('cropRatio').onchange=drawEditorPreview;
+$('brightness').oninput=()=>{$('brightnessValue').textContent=$('brightness').value+'%';drawEditorPreview()};
+$('contrast').oninput=()=>{$('contrastValue').textContent=$('contrast').value+'%';drawEditorPreview()};
+$('saveEdit').onclick=saveEditedCopy;
 $('detailsBtn').onclick=()=>{const x=items.find(a=>a.id===activeId);if(x)alert(`Name: ${x.name}\nType: ${x.blob.type||x.type}\nSize: ${formatBytes(x.blob.size)}\nDate: ${new Date(x.created).toLocaleString()}\nDimensions: available in original media metadata`)};
 $('shareBtn').onclick=async()=>{const x=items.find(a=>a.id===activeId);if(!x)return;const f=new File([x.blob],x.name,{type:x.blob.type});try{if(navigator.canShare?.({files:[f]}))await navigator.share({files:[f],title:x.name});else{const a=document.createElement('a');a.href=URL.createObjectURL(x.blob);a.download=x.name;a.click();toast('Downloaded file')}}catch(e){if(e.name!=='AbortError')toast('Sharing unavailable')}};
 $('deleteBtn').onclick=async()=>{const x=items.find(a=>a.id===activeId);if(x&&confirm('Move this item to Recently Deleted? It will be kept for up to 30 days. Original in Apple Photos is unchanged.')){await moveToTrash(x);closeViewer();await load();toast('Moved to Recently Deleted')}};
