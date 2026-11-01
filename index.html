@@ -18,7 +18,18 @@
 </nav>
 <main>
   <section id="albumTools" class="album-tools" hidden><button class="pill" id="newAlbum">＋ New album</button></section>
-  <section class="manage-tools"><button class="pill" id="selectBtn">Select</button><button class="pill" id="sortBtn">Newest first</button></section>
+  <section class="manage-tools" id="manageTools">
+    <button class="pill" id="selectBtn" type="button">Select photos</button>
+    <button class="pill" id="sortBtn" type="button">Newest first</button>
+  </section>
+  <section id="selectionBar" class="selection-bar" hidden>
+    <span id="selectedCount">0 selected</span>
+    <button class="pill" id="selectAll" type="button">Select all</button>
+    <button class="pill" id="moveSelected" type="button">Move to album</button>
+    <button class="pill" id="deleteSelected" type="button">Remove</button>
+    <button class="pill" id="clearSelection" type="button">Done</button>
+  </section>
+  
   <section id="selectionBar" class="selection-bar" hidden><span id="selectedCount">Selected items</span><button class="pill" id="selectAll">Select all</button><button class="pill" id="moveSelected">Move to album</button><button class="pill" id="deleteSelected">Remove</button><button class="pill" id="clearSelection">Done</button></section>
   <section id="grid" class="grid" aria-live="polite"></section>
   <section id="empty" class="empty"><div class="empty-icon">▧</div><h2>Your gallery starts here</h2><p>Add photos and videos from your iPhone to build your private gallery.</p><button class="primary" id="emptyAdd">Choose photos</button></section>
